@@ -97,8 +97,8 @@ class MongoDBManager:
                     old_data[profession] = {}
                 for language, values in nested_data.items():
                     if language in old_data[profession]:
-                        existing_values_set = set(map(json.dumps,old_data[profession][language]))
-                        new_values_set = set(map(json.dumps,values))
+                        existing_values_set = set(map(lambda x: json.dumps(x, sort_keys=True),old_data[profession][language]))
+                        new_values_set = set(map(lambda x: json.dumps(x, sort_keys=True),values))
                         old_data[profession][language]= list(map(json.loads,existing_values_set.union(new_values_set)))
                     else:
                         old_data[profession][language] = values
@@ -183,10 +183,10 @@ class MongoDBManager:
     def get_if_database_is_available_for_adding_data(self,data):
         try:
             stats = self.db.command("dbStats")
-            print("Taille des données existante : "+ str((stats["dataSize"])/1024/1024))
-            print("Taille des données à ajouter : "+str(self.gettotalsizeof(data)/1024/1024))
+            print("Taille des données existante : "+ str((stats["dataSize"])/1024/1024)+" Mo")
+            print("Taille des données à ajouter : "+str(self.gettotalsizeof(data)/1024/1024)+" Mo")
             left_estimated_size = (512-(stats["dataSize"]+self.gettotalsizeof(data))/1024/1024)
-            print("Taille restante Estimée après ajout de la nouvelle donnée: "+ str(left_estimated_size))
+            print("Taille restante Estimée après ajout de la nouvelle donnée: "+ str(left_estimated_size)+" Mo")
             if left_estimated_size < 20:
                 print("Database is not available to add data because the estimated size is less than 20Mo")
                 return False
@@ -194,7 +194,23 @@ class MongoDBManager:
                 print("Database is available to add data")
                 return True
         except Exception as e:
-            print(f"Database is not available: {e}")   
+            print(f"Database is not available: {e}")  
+            
+    def get_redondant_data_and_delete(self):
+        try:
+            all_docs = self.read_all_documents_in_collection_with_GridFS()
+            for document_id, data in all_docs.items():
+                for profession, nested_data in data.items():
+                    for language, values in nested_data.items():
+                        if len(values) > 1:
+                            print(f"Redondant data found in {document_id}: {profession}/{language}")
+                            print(f"Values: {values}")
+                            print("Deleting redondant data...")
+                            values.pop()
+                            # self.update_data_before_save_new_json_with_GridFS(document_id, {profession: {language: values}})
+                            print("Redondant data deleted")
+        except Exception as e:
+            print(f"Error getting redondant data: {e}")
     
     """
 The active selection is a Python class called MongoDBManager. This class is responsible for managing interactions with a MongoDB database. It provides methods for adding data to the database, reading documents from the database, and updating data in the database.
